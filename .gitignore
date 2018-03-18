@@ -1,0 +1,11 @@
+*.d
+*.o
+*.c~
+*.bin
+*.srec
+*.hex
+*.list
+*.map
+*.elf
+*.h~
+*.c#
