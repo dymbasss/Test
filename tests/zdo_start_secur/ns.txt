@@ -1,0 +1,3 @@
+token: --nNode=2
+token: --pipeName=/tmp/zt
+start simulate
