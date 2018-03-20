@@ -71,20 +71,13 @@ zb_ieee_addr_t g_ieee_addr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x08};
 zb_uint8_t g_key[16] = { 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0, 0, 0, 0, 0, 0, 0, 0};
 
 //1)on 2)off 3)toggle 4)set to level 5)step up 6)step down
-zb_uint8_t my_packet_1[] = {1,1,2,0,3,1,4,100,5,25,6,30};
-zb_uint8_t my_packet_2[] = {1,1,2,0,3,2,4,150,5,50,6,60};
-zb_uint8_t my_packet_3[] = {1,1,2,0,3,3,4,150,5,50,6,60};
-zb_uint8_t my_packet_4[] = {1,1,2,0,3,4,4,130,5,30,6,40};
-
-zb_ushort_t number_packet = 1;
-zb_uint8_t size = sizeof(my_packet_1) / sizeof(my_packet_1[0]);
 
 /*
   The test is: ZC starts PAN, ZR joins to it by association and send APS data packet, when ZC received packet, it sends packet to ZR, when ZR received packet, it sends packet to ZC etc.
  */
 
 #ifndef APS_RETRANSMIT_TEST
-static void zc_send_data(zb_buf_t *buf, zb_uint16_t addr, zb_uint8_t packet[]);
+static void zc_send_data(zb_buf_t *buf, zb_uint16_t addr);
 #endif
 
 void data_indication(zb_uint8_t param) ZB_CALLBACK;
@@ -147,57 +140,31 @@ void zb_zdo_startup_complete(zb_uint8_t param) ZB_CALLBACK
   zb_free_buf(buf);
 }
 
-
-/*
-   Trivial test: dump all APS data received
- */
-
-
 void data_indication(zb_uint8_t param) ZB_CALLBACK
 {
-  zb_uint8_t *ptr;
   zb_buf_t *asdu = (zb_buf_t *)ZB_BUF_FROM_REF(param);
   
 #ifndef APS_RETRANSMIT_TEST
   zb_apsde_data_indication_t *ind = ZB_GET_BUF_PARAM(asdu, zb_apsde_data_indication_t);
 #endif
-
-  /* Remove APS header from the packet */
-  ZB_APS_HDR_CUT_P(asdu, ptr);
  
 #ifdef APS_RETRANSMIT_TEST
   zb_free_buf(asdu);
 #else
-  switch(number_packet)
-    {
-    case 1:
-      /* send packet back to ZR */
-      zc_send_data(asdu, ind->src_addr, my_packet_1);
-      break;
-    case 2:
-      zc_send_data(asdu, ind->src_addr, my_packet_2);
-      break;
-    case 3:
-      zc_send_data(asdu, ind->src_addr, my_packet_3);
-      break;
-    case 4:
-      zc_send_data(asdu, ind->src_addr, my_packet_4);
-      break;
-    }
+  /* send packet back to ZR */
+  zc_send_data(asdu, ind->src_addr);
 #endif
-  
-  number_packet++;
-    
 }
 
+
 #ifndef APS_RETRANSMIT_TEST
-static void zc_send_data(zb_buf_t *buf, zb_uint16_t addr, zb_uint8_t packet[])
+static void zc_send_data(zb_buf_t *buf, zb_uint16_t addr)
 {
   zb_apsde_data_req_t *req;
   zb_uint8_t *ptr = NULL;
-  zb_short_t i; 
+  //zb_short_t i = 0; 
     
-  ZB_BUF_INITIAL_ALLOC(buf, size, ptr);
+  ZB_BUF_INITIAL_ALLOC(buf, 2, ptr);
   req = ZB_GET_BUF_TAIL(buf, sizeof(zb_apsde_data_req_t));
   req->dst_addr.addr_short = addr; /* send to ZR */
   req->addr_mode = ZB_APS_ADDR_MODE_16_ENDP_PRESENT;
@@ -207,15 +174,36 @@ static void zc_send_data(zb_buf_t *buf, zb_uint16_t addr, zb_uint8_t packet[])
   req->src_endpoint = 10;
   req->dst_endpoint = 10;
   buf->u.hdr.handle = 0x11;
-	
-  for (i = 0 ; i < size; ++i)
+  
+  srand((zb_uint8_t)time(NULL)); 
+  ptr[0] = rand()%6 + 1;
+  //ptr[1] = rand()%255;
+  
+  switch(ptr[0])
     {
-      ptr[i] = packet[i];
+    case 1:
+    ptr[1] = rand()%2;
+    break;
+    case 2:
+    ptr[1] = rand()%2;
+    break;
+    case 3:
+    ptr[1] = rand()%4 + 1;
+    break;
+    case 4:
+    ptr[1] = rand()%255;
+    break;
+    case 5:
+    ptr[1] = rand()%255;
+    break;
+    case 6:
+    ptr[1] = rand()%255;
+    break;
     }
-	
+  
   TRACE_MSG(TRACE_APS2, "Sending apsde_data.request", (FMT__0));  
-  //ZB_SCHEDULE_ALARM(zb_apsde_data_request, ZB_REF_FROM_BUF(buf), 5 * ZB_TIME_ONE_SECOND);
-  ZB_SCHEDULE_CALLBACK(zb_apsde_data_request, ZB_REF_FROM_BUF(buf));
+  ZB_SCHEDULE_ALARM(zb_apsde_data_request, ZB_REF_FROM_BUF(buf), 5 * ZB_TIME_ONE_SECOND);
+  //ZB_SCHEDULE_CALLBACK(zb_apsde_data_request, ZB_REF_FROM_BUF(buf));
 }
 #endif
 

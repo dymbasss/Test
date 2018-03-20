@@ -73,7 +73,7 @@ zb_uint8_t answer_2[] = "Complete";
 zb_uint8_t size_2 = sizeof(answer_2) / sizeof(answer_2[0]);
 
 static void send_data(zb_buf_t *buf, zb_uint8_t packet[], zb_uint8_t size);
-void tar(zb_uint8_t *ptr, zb_ushort_t size);
+void tar(zb_uint8_t *ptr);
 
 #ifndef APS_RETRANSMIT_TEST
 void data_indication(zb_uint8_t param) ZB_CALLBACK;
@@ -199,10 +199,10 @@ void data_indication(zb_uint8_t param)
 
   for (i = 0 ; i < ZB_BUF_LEN(asdu); ++i)
     {
-      TRACE_MSG(TRACE_APS2, "%x %c", (FMT__D_C, (int)ptr[i], ptr[i]));
+      TRACE_MSG(TRACE_APS2, "%d %c", (FMT__D_C, ptr[i], ptr[i]));
     }
 
-  tar(ptr,i);
+  tar(ptr);
   send_data(asdu, answer_2, size_2);
     
 }
@@ -215,39 +215,43 @@ void set_to_level(zb_uint8_t *ptr, zb_ushort_t i);
 void step_up(zb_uint8_t *ptr, zb_ushort_t i);
 void step_down(zb_uint8_t *ptr, zb_ushort_t i);
 
+enum led_command
+  {
+    LED_COMMAND_ON = 1,
+    LED_COMMAND_OFF,
+    LED_COMMAND_TUGGLE,
+    LED_COMMAND_SET_TO_LEVEL,
+    LED_COMMAND_STEP_UP,
+    LED_COMMAND_STEP_DOWN
+  };
+
 /* 1)on 2)off 3)toggle 4)set to level 5)step up 6)step down */
 
-void tar(zb_uint8_t *ptr, zb_ushort_t size)
+void tar(zb_uint8_t *ptr)
 {
   zb_ushort_t i = 0;
   
-    do
-      {
-	switch(ptr[i])
-	  {
-	  case 1:
-	  on(ptr,1);
-	  break;
-	  case 2:
-	  off(ptr,3);
-	  break;
-	  case 3:
-	  toggle(ptr,5);
-	  break;
-	  case 4:
-	  set_to_level(ptr,7);
-	  break;
-	  case 5:
-	  step_up(ptr,9);
-	  break;
-	  case 6:
-	  step_down(ptr,11);
-	  break;
-	  }
-	
-	i+=2;
-	
-      } while(size != i);
+  switch(ptr[i])
+    {
+    case LED_COMMAND_ON:
+      on(ptr,1);
+      break;
+    case LED_COMMAND_OFF:
+      off(ptr,1);
+      break;
+    case LED_COMMAND_TUGGLE:
+      toggle(ptr,1);
+      break;
+    case LED_COMMAND_SET_TO_LEVEL:
+      set_to_level(ptr,1);
+      break;
+    case LED_COMMAND_STEP_UP:
+      step_up(ptr,1);
+      break;
+    case LED_COMMAND_STEP_DOWN:
+      step_down(ptr,1);
+      break;
+    }
 }
 
 void on(zb_uint8_t *ptr, zb_ushort_t i)
