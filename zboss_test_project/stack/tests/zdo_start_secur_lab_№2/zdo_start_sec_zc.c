@@ -46,18 +46,7 @@
 PURPOSE: Test for ZC application written using ZDO.
 */
 
-#include "zb_common.h"
-#include "zb_scheduler.h"
-#include "zb_bufpool.h"
-#include "zb_nwk.h"
-#include "zb_aps.h"
-#include "zb_zdo.h"
-#include "zb_secur.h"
-#include "zb_secur_api.h"
-
-
-/*! \addtogroup ZB_TESTS */
-/*! @{ */
+#include "zdo_header_for_led.h"
 
 #ifndef ZB_COORDINATOR_ROLE
 #error Coordinator role is not compiled!
@@ -70,17 +59,22 @@ PURPOSE: Test for ZC application written using ZDO.
 zb_ieee_addr_t g_ieee_addr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x08};
 zb_uint8_t g_key[16] = { 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0, 0, 0, 0, 0, 0, 0, 0};
 
-//1)on 2)off 3)toggle 4)set to level 5)step up 6)step down
+void zr_led_command(zb_uint8_t *ptr);
+void data_indication(zb_uint8_t param) ZB_CALLBACK;
 
-/*
-  The test is: ZC starts PAN, ZR joins to it by association and send APS data packet, when ZC received packet, it sends packet to ZR, when ZR received packet, it sends packet to ZC etc.
- */
+#define FIRST_BYTE 0
+#define SECOND_BYTE 1
+#define LED_BRIGHTNESS_STEP 50
 
+void zr_on();
+void zr_off();
+void zr_toggle();
+void zr_set_to_level(zb_uint8_t *ptr);
+void zr_step_up();
+void zr_step_down();
 
-static void zc_send_data(zb_uint8_t param);
-static void all_stack(zb_uint8_t param);
-
-#define addr 0x0001
+zb_bool_t led_state;
+zb_uint8_t led_brightness;
 
 MAIN()
 {
@@ -93,7 +87,6 @@ MAIN()
     return 0;
   }
 #endif
-
 
   /* Init device, load IB values from nvram or set it to default */
 #ifndef ZB8051
@@ -120,8 +113,6 @@ MAIN()
   MAIN_RETURN(0);
 }
 
-
-
 void zb_zdo_startup_complete(zb_uint8_t param)
 {
   zb_buf_t *buf = ZB_BUF_FROM_REF(param);
@@ -130,141 +121,87 @@ void zb_zdo_startup_complete(zb_uint8_t param)
   if (buf->u.hdr.status == 0)
   {
     TRACE_MSG(TRACE_APS1, "Device STARTED OK", (FMT__0));
-    zb_uint8_t some_param = ZB_REF_FROM_BUF(zb_get_out_buf());
-    ZB_SCHEDULE_CALLBACK(all_stack, some_param); 
+    zb_af_set_data_indication(data_indication);
   }
   else
   {
-    TRACE_MSG(TRACE_ERROR, "Device start FAILED status %d",
-	      (FMT__D, (int)buf->u.hdr.status));
+    TRACE_MSG(TRACE_ERROR, "Device start FAILED status %d",(FMT__D, (int)buf->u.hdr.status));
+    zb_free_buf(buf);
   }
-  zb_free_buf(buf);
 }
 
-zb_uint8_t ran_d(zb_uint8_t i)
+void data_indication(zb_uint8_t param)
 {
-  srand((zb_uint8_t)time(NULL));
+  zb_uint8_t *ptr;
+  zb_buf_t *asdu = (zb_buf_t *)ZB_BUF_FROM_REF(param);
 
-  return rand()%i + 0;
+  /* Remove APS header from the packet */
+  ZB_APS_HDR_CUT_P(asdu, ptr);
+
+  TRACE_MSG(TRACE_APS2, "data_indication: packet %p len %d handle 0x%x", (FMT__P_D_D,
+                         asdu, (int)ZB_BUF_LEN(asdu), asdu->u.hdr.status));
+
+  zr_led_command(ptr);
+  zb_free_buf(asdu);   
 }
 
-void on(zb_uint8_t param)
+void zr_led_command(zb_uint8_t *ptr)
 {
-  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
-  ZB_BUF_INITIAL_ALLOC(buf, 2, ptr);
-  ptr[0] = 0;
-  ptr[1] = ran_d(1);
-  zc_send_data(param);
-}
-
-void off(zb_uint8_t param)
-{
-  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
-  ZB_BUF_INITIAL_ALLOC(buf, 2, ptr);
-  ptr[0] = 1;
-  ptr[1] = ran_d(1);
-  zc_send_data(param);
-}
-
-void toggle(zb_uint8_t param)
-{
-  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
-  ZB_BUF_INITIAL_ALLOC(buf, 2, ptr);
-  ptr[0] = 2;
-  ptr[1] = ran_d(3);
-  zc_send_data(param);
-}
-
-void set_to_level(zb_uint8_t param)
-{
-  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
-  ZB_BUF_INITIAL_ALLOC(buf, 2, ptr);
-  ptr[0] = 3;
-  ptr[1] = ran_d(255);
-  zc_send_data(param);
-}
-
-void step_up(zb_uint8_t param)
-{
-  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
-  ZB_BUF_INITIAL_ALLOC(buf, 2, ptr);
-  ptr[0] = 4;
-  ptr[1] = ran_d(255);
-  zc_send_data(param);
-}
-
-void step_down(zb_uint8_t param)
-{
-  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
-  ZB_BUF_INITIAL_ALLOC(buf, 2, ptr);
-  ptr[0] = 5;
-  ptr[1] = ran_d(255);
-  zc_send_data(param);
-}
-
-enum led_command
-  {
-    LED_COMMAND_ON = 0,
-    LED_COMMAND_OFF,
-    LED_COMMAND_TOGGLE,
-    LED_COMMAND_SET_TO_LEVEL,
-    LED_COMMAND_STEP_UP,
-    LED_COMMAND_STEP_DOWN
-  };
-
-static void all_stack(zb_uint8_t param)
-{  
-  switch(ran_d(6))
+  switch(ptr[FIRST_BYTE])
     {
     case LED_COMMAND_ON:
-      ZB_SCHEDULE_CALLBACK(on, param);
+      zr_on();
       break;
     case LED_COMMAND_OFF:
-      ZB_SCHEDULE_CALLBACK(off, param);
+      zr_off();
       break;
     case LED_COMMAND_TOGGLE:
-      ZB_SCHEDULE_CALLBACK(toggle, param);
+      zr_toggle();
       break;
     case LED_COMMAND_SET_TO_LEVEL:
-      ZB_SCHEDULE_CALLBACK(set_to_level, param);
+      zr_set_to_level(ptr);
       break;
     case LED_COMMAND_STEP_UP:
-      ZB_SCHEDULE_CALLBACK(step_up, param);
+      zr_step_up();
       break;
     case LED_COMMAND_STEP_DOWN:
-      ZB_SCHEDULE_CALLBACK(step_down, param);
+      zr_step_down();
       break;
     }
-  
-  zb_uint8_t some_param = ZB_REF_FROM_BUF(zb_get_out_buf());
-  ZB_SCHEDULE_ALARM(all_stack, some_param,5 * ZB_TIME_ONE_SECOND); 
 }
 
-
-static void zc_send_data(zb_uint8_t param)
+void zr_on()
+{ 
+  led_state = ZB_TRUE;
+  TRACE_MSG(TRACE_APS2, "ON, %d", (FMT__D, led_state));
+}
+  
+void zr_off()
 {
-  zb_buf_t *buf = (zb_buf_t*)ZB_BUF_FROM_REF(param);
-  zb_apsde_data_req_t *req;
-    
-  req = ZB_GET_BUF_TAIL(buf, sizeof(zb_apsde_data_req_t));
-  req->dst_addr.addr_short = addr; /* send to ZR */
-  req->addr_mode = ZB_APS_ADDR_MODE_16_ENDP_PRESENT;
-  req->tx_options = ZB_APSDE_TX_OPT_ACK_TX;
-  req->radius = 1;
-  req->profileid = 2;
-  req->src_endpoint = 10;
-  req->dst_endpoint = 10;
-  buf->u.hdr.handle = 0x11;
-  
-  
-  TRACE_MSG(TRACE_APS2, "Sending apsde_data.request", (FMT__0));  
-  ZB_SCHEDULE_CALLBACK(zb_apsde_data_request, ZB_REF_FROM_BUF(buf));
+  led_state = ZB_FALSE;
+  TRACE_MSG(TRACE_APS2, "OFF, %d", (FMT__D, led_state));
 }
 
-/*! @} */
+void zr_toggle()
+{
+  led_state = !led_state;
+  TRACE_MSG(TRACE_APS2, "TOGGLE, %d", (FMT__D, led_state));
+}
+
+void zr_set_to_level(zb_uint8_t *ptr)
+{
+  led_brightness += ptr[SECOND_BYTE];
+  TRACE_MSG(TRACE_APS2, "SET_TO_LEVEL, %d", (FMT__D, led_brightness));
+}
+
+void zr_step_up()
+{
+  led_brightness += LED_BRIGHTNESS_STEP;
+  TRACE_MSG(TRACE_APS2, "STEP_UP, %d", (FMT__D, led_brightness));
+}
+
+void zr_step_down()
+{
+  led_brightness -= LED_BRIGHTNESS_STEP;
+  TRACE_MSG(TRACE_APS2, "STEP_DOWN, %d", (FMT__D, led_brightness));
+}
