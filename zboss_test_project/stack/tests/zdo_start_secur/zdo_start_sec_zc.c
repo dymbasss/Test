@@ -67,13 +67,18 @@ PURPOSE: Test for ZC application written using ZDO.
 #error Define ZB_SECURITY
 #endif
 
-zb_ieee_addr_t g_ieee_addr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x08};
+
+  
+
+
+zb_ieee_addr_t g_ieee_addr = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08};
 zb_uint8_t g_key[16] = { 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0, 0, 0, 0, 0, 0, 0, 0};
 
-//1)on 2)off 3)toggle 4)set to level 5)step up 6)step down
 
 /*
-  The test is: ZC starts PAN, ZR joins to it by association and send APS data packet, when ZC received packet, it sends packet to ZR, when ZR received packet, it sends packet to ZC etc.
+  The test is: ZC starts PAN, ZR joins to it by association and send APS data packet, when ZC
+  received packet, it sends packet to ZR, when ZR received packet, it sends
+  packet to ZC etc.
  */
 
 #ifndef APS_RETRANSMIT_TEST
@@ -140,72 +145,70 @@ void zb_zdo_startup_complete(zb_uint8_t param) ZB_CALLBACK
   zb_free_buf(buf);
 }
 
+
+/*
+   Trivial test: dump all APS data received
+ */
+
+
 void data_indication(zb_uint8_t param) ZB_CALLBACK
 {
+  zb_ushort_t i;
+  zb_uint8_t *ptr;
   zb_buf_t *asdu = (zb_buf_t *)ZB_BUF_FROM_REF(param);
-  
 #ifndef APS_RETRANSMIT_TEST
   zb_apsde_data_indication_t *ind = ZB_GET_BUF_PARAM(asdu, zb_apsde_data_indication_t);
 #endif
- 
+
+  /* Remove APS header from the packet */
+  ZB_APS_HDR_CUT_P(asdu, ptr);
+
+  TRACE_MSG(TRACE_APS2, "apsde_data_indication: packet %p len %d handle 0x%x", (FMT__P_D_D,
+                         asdu, (int)ZB_BUF_LEN(asdu), asdu->u.hdr.status));
+
+  for (i = 0 ; i < ZB_BUF_LEN(asdu) ; ++i)
+  {
+    TRACE_MSG(TRACE_APS2, "%x %c", (FMT__D_C, (int)ptr[i], ptr[i]));
+    if (ptr[i] != i % 32 + '0')
+    {
+      TRACE_MSG(TRACE_ERROR, "Bad data %hx %c wants %x %c", (FMT__H_C_D_C, ptr[i], ptr[i],
+                              (int)(i % 32 + '0'), (char)i % 32 + '0'));
+    }
+  }
+
 #ifdef APS_RETRANSMIT_TEST
   zb_free_buf(asdu);
 #else
   /* send packet back to ZR */
   zc_send_data(asdu, ind->src_addr);
+
 #endif
-
 }
-
 
 #ifndef APS_RETRANSMIT_TEST
 static void zc_send_data(zb_buf_t *buf, zb_uint16_t addr)
 {
-  zb_apsde_data_req_t *req;
-  zb_uint8_t *ptr = NULL;
-  //zb_short_t i = 0; 
-    
-  ZB_BUF_INITIAL_ALLOC(buf, 2, ptr);
-  req = ZB_GET_BUF_TAIL(buf, sizeof(zb_apsde_data_req_t));
-  req->dst_addr.addr_short = addr; /* send to ZR */
-  req->addr_mode = ZB_APS_ADDR_MODE_16_ENDP_PRESENT;
-  req->tx_options = ZB_APSDE_TX_OPT_ACK_TX;
-  req->radius = 1;
-  req->profileid = 2;
-  req->src_endpoint = 10;
-  req->dst_endpoint = 10;
-  buf->u.hdr.handle = 0x11;
+    zb_apsde_data_req_t *req;
+    zb_uint8_t *ptr = NULL;
+    zb_short_t i;
   
-  srand((zb_uint8_t)time(NULL)); 
-  ptr[0] = rand()%6 + 1;
-  //ptr[1] = rand()%255;
-  
-  switch(ptr[0])
+    ZB_BUF_INITIAL_ALLOC(buf, ZB_TEST_DATA_SIZE, ptr);
+    req = ZB_GET_BUF_TAIL(buf, sizeof(zb_apsde_data_req_t));
+    req->dst_addr.addr_short = addr; /* send to ZR */
+    req->addr_mode = ZB_APS_ADDR_MODE_16_ENDP_PRESENT;
+    req->tx_options = ZB_APSDE_TX_OPT_ACK_TX;
+    req->radius = 1;
+    req->profileid = 2;
+    req->src_endpoint = 10;
+    req->dst_endpoint = 10;  
+    buf->u.hdr.handle = 0x11;  
+    for (i = 0 ; i < ZB_TEST_DATA_SIZE ; ++i)
     {
-    case 1:
-    ptr[1] = rand()%2;
-    break;
-    case 2:
-    ptr[1] = rand()%2;
-    break;
-    case 3:
-    ptr[1] = rand()%4 + 1;
-    break;
-    case 4:
-    ptr[1] = rand()%255;
-    break;
-    case 5:
-    ptr[1] = rand()%255;
-    break;
-    case 6:
-    ptr[1] = rand()%255;
-    break;
+      ptr[i] = i % 32 + '0';
     }
-  
-  TRACE_MSG(TRACE_APS2, "Sending apsde_data.request", (FMT__0));  
-  ZB_SCHEDULE_ALARM(zb_apsde_data_request, ZB_REF_FROM_BUF(buf), 5 * ZB_TIME_ONE_SECOND);
-  //ZB_SCHEDULE_CALLBACK(zb_apsde_data_request, ZB_REF_FROM_BUF(buf));
-}
+    TRACE_MSG(TRACE_APS2, "Sending apsde_data.request", (FMT__0));  
+    ZB_SCHEDULE_CALLBACK(zb_apsde_data_request, ZB_REF_FROM_BUF(buf));
+  }
 #endif
 
 /*! @} */

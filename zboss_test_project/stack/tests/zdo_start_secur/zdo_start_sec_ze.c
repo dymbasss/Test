@@ -116,7 +116,7 @@ void zb_zdo_startup_complete(zb_uint8_t param) ZB_CALLBACK
   {
     TRACE_MSG(TRACE_APS1, "Device STARTED OK", (FMT__0));
     zb_af_set_data_indication(data_indication);
-    //send_data((zb_buf_t *)ZB_BUF_FROM_REF(param));
+    send_data((zb_buf_t *)ZB_BUF_FROM_REF(param));
   }
   else
   {

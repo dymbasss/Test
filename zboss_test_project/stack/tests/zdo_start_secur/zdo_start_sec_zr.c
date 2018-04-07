@@ -67,14 +67,7 @@ PURPOSE:
 /*! \addtogroup ZB_TESTS */
 /*! @{ */
 
-zb_uint8_t answer[] = "Connected";
-zb_uint8_t size = sizeof(answer) / sizeof(answer[0]);
-zb_uint8_t answer_2[] = "Complete";
-zb_uint8_t size_2 = sizeof(answer_2) / sizeof(answer_2[0]);
-
-static void send_data(zb_buf_t *buf, zb_uint8_t packet[], zb_uint8_t size);
-void tar(zb_uint8_t *ptr);
-
+static void send_data(zb_buf_t *buf);
 #ifndef APS_RETRANSMIT_TEST
 void data_indication(zb_uint8_t param) ZB_CALLBACK;
 #endif
@@ -103,7 +96,6 @@ MAIN()
   ZB_INIT("zdo_zr", "2", "2");
 #endif
 
-  //ZB_PIB_RX_ON_WHEN_IDLE() = ZB_FALSE;
 
   /* FIXME: temporary, until neighbor table is not in nvram */
   /* add extended address of potential parent to emulate that we've already
@@ -137,28 +129,28 @@ void zb_zdo_startup_complete(zb_uint8_t param) ZB_CALLBACK
 {
   zb_buf_t *buf = ZB_BUF_FROM_REF(param);
   if (buf->u.hdr.status == 0)
-    {
-      TRACE_MSG(TRACE_APS1, "Device STARTED OK", (FMT__0));
+  {
+    TRACE_MSG(TRACE_APS1, "Device STARTED OK", (FMT__0));
 #ifndef APS_RETRANSMIT_TEST
-      zb_af_set_data_indication(data_indication);
+    zb_af_set_data_indication(data_indication);
 #endif
-      send_data((zb_buf_t *)ZB_BUF_FROM_REF(param), answer, size);
-    }
+    send_data((zb_buf_t *)ZB_BUF_FROM_REF(param));
+  }
   else
-    {
-      TRACE_MSG(TRACE_ERROR, "Device started FAILED status %d", (FMT__D, (int)buf->u.hdr.status));
-      zb_free_buf(buf);
-    }
+  {
+    TRACE_MSG(TRACE_ERROR, "Device started FAILED status %d", (FMT__D, (int)buf->u.hdr.status));
+    zb_free_buf(buf);
+  }
 }
 
 
-static void send_data(zb_buf_t *buf, zb_uint8_t packet[], zb_uint8_t size)
+static void send_data(zb_buf_t *buf)
 {
   zb_apsde_data_req_t *req;
   zb_uint8_t *ptr = NULL;
   zb_short_t i;
 
-  ZB_BUF_INITIAL_ALLOC(buf, size, ptr);
+  ZB_BUF_INITIAL_ALLOC(buf, ZB_TEST_DATA_SIZE, ptr);
   req = ZB_GET_BUF_TAIL(buf, sizeof(zb_apsde_data_req_t));
   req->dst_addr.addr_short = 0; /* send to ZC */
   req->addr_mode = ZB_APS_ADDR_MODE_16_ENDP_PRESENT;
@@ -167,21 +159,21 @@ static void send_data(zb_buf_t *buf, zb_uint8_t packet[], zb_uint8_t size)
   req->profileid = 2;
   req->src_endpoint = 10;
   req->dst_endpoint = 10;
+
   buf->u.hdr.handle = 0x11;
 
 #if 0   /* test with wrong pan_id after join */
   MAC_PIB().mac_pan_id = 0x1aaa;
-  ZB_UPDATE_PAN_ID();
+  ZB_UPDATE_PAN_ID();						   ?
 #endif 													 
-  for (i = 0 ; i < size; ++i)
-    {
-      ptr[i] = packet[i];
-    }
-  
+
+  for (i = 0 ; i < ZB_TEST_DATA_SIZE ; ++i)
+  {
+    ptr[i] = i % 32 + '0';
+  }
   TRACE_MSG(TRACE_APS2, "Sending apsde_data.request", (FMT__0));
-  //ZB_SCHEDULE_ALARM(zb_apsde_data_request, ZB_REF_FROM_BUF(buf), 5 * ZB_TIME_ONE_SECOND);
+
   ZB_SCHEDULE_CALLBACK(zb_apsde_data_request, ZB_REF_FROM_BUF(buf));
-  
 }
 
 #ifndef APS_RETRANSMIT_TEST
@@ -197,110 +189,19 @@ void data_indication(zb_uint8_t param)
   TRACE_MSG(TRACE_APS2, "data_indication: packet %p len %d handle 0x%x", (FMT__P_D_D,
                          asdu, (int)ZB_BUF_LEN(asdu), asdu->u.hdr.status));
 
-  for (i = 0 ; i < ZB_BUF_LEN(asdu); ++i)
+  for (i = 0 ; i < ZB_BUF_LEN(asdu) ; ++i)
+  {
+    TRACE_MSG(TRACE_APS2, "%x %c", (FMT__D_C, (int)ptr[i], ptr[i]));
+    if (ptr[i] != i % 32 + '0')
     {
-      TRACE_MSG(TRACE_APS2, "%d %c", (FMT__D_C, ptr[i], ptr[i]));
+      TRACE_MSG(TRACE_ERROR, "Bad data %hx %c wants %x %c", (FMT__H_C_D_C, ptr[i], ptr[i],
+                              (int)(i % 32 + '0'), (char)i % 32 + '0'));
     }
+  }
 
-  tar(ptr);
-  send_data(asdu, answer_2, size_2);
-    
+  send_data(asdu);
 }
 #endif
 
-#define FIRST 0
-#define SECOND 1
-void on(zb_uint8_t *ptr);
-void off(zb_uint8_t *ptr);
-void toggle(zb_uint8_t *ptr);
-void set_to_level(zb_uint8_t *ptr);
-void step_up(zb_uint8_t *ptr);
-void step_down(zb_uint8_t *ptr);
 
-enum led_command
-  {
-    LED_COMMAND_ON = 1,
-    LED_COMMAND_OFF,
-    LED_COMMAND_TUGGLE,
-    LED_COMMAND_SET_TO_LEVEL,
-    LED_COMMAND_STEP_UP,
-    LED_COMMAND_STEP_DOWN
-  };
-
-/* 1)on 2)off 3)toggle 4)set to level 5)step up 6)step down */
-
-void tar(zb_uint8_t *ptr)
-{
-  switch(ptr[FIRST])
-    {
-    case LED_COMMAND_ON:
-      on(ptr);
-      break;
-    case LED_COMMAND_OFF:
-      off(ptr);
-      break;
-    case LED_COMMAND_TUGGLE:
-      toggle(ptr);
-      break;
-    case LED_COMMAND_SET_TO_LEVEL:
-      set_to_level(ptr);
-      break;
-    case LED_COMMAND_STEP_UP:
-      step_up(ptr);
-      break;
-    case LED_COMMAND_STEP_DOWN:
-      step_down(ptr);
-      break;
-    }
-}
-
-void on(zb_uint8_t *ptr)
-{ 
-  if ((ptr[SECOND]) == 1)
-    {
-      TRACE_MSG(TRACE_APS2, "Status.LED -> ON", (FMT__0));
-    }
-}
-  
-void off(zb_uint8_t *ptr)
-{
-  if ((ptr[SECOND]) == 1)
-    {
-      TRACE_MSG(TRACE_APS2, "Status.LED -> OFF", (FMT__0));
-    }
-}
-
-void toggle(zb_uint8_t *ptr)
-{
-  switch(ptr[SECOND])
-    {
-    case 1:
-      TRACE_MSG(TRACE_APS2, "Steps.LED -> GREEN",(FMT__0));
-      break;
-    case 2:
-      TRACE_MSG(TRACE_APS2, "Steps.LED -> RED",(FMT__0));
-      break;
-    case 3:
-      TRACE_MSG(TRACE_APS2, "Steps.LED -> YELLOW",(FMT__0));
-      break;
-    case 4:
-      TRACE_MSG(TRACE_APS2, "Steps.LED -> BLUE",(FMT__0));
-      break;
-    }
-}
-
-void step_up(zb_uint8_t *ptr)
-{
-  TRACE_MSG(TRACE_APS2, "Step_up.LED -> %d",(FMT__D,ptr[SECOND]));
-}
-
-void step_down(zb_uint8_t *ptr)
-{
-  TRACE_MSG(TRACE_APS2, "Step_down.LED -> %d",(FMT__D,ptr[SECOND]));
-}
-
-void set_to_level(zb_uint8_t *ptr)
-{
-  TRACE_MSG(TRACE_APS2, "Set_to_level.LED -> %d",(FMT__D,ptr[SECOND]));
-}
 /*! @} */
