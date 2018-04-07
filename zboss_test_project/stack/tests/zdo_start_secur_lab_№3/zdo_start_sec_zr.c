@@ -363,8 +363,8 @@ void send_data_req(zb_uint8_t param)
   req->radius = 1;
   req->profileid = 2;
   req->clusterid = 43690;
-  req->src_endpoint = 11;
-  req->dst_endpoint = 1;
+  req->src_endpoint = 1;
+  req->dst_endpoint = 11;
   buf->u.hdr.handle = 0x11;
 
     ptr[0] = 4; ptr[1] = 3; ptr[2] = 6; ptr[3] = 9; ptr[4] = 2;
