@@ -46,36 +46,71 @@
 PURPOSE: Test for ZC application written using ZDO.
 */
 
+#include "zdo_header_for_led.h"
 
-#include "zb_common.h"
-#include "zb_scheduler.h"
-#include "zb_bufpool.h"
-#include "zb_nwk.h"
-#include "zb_aps.h"
-#include "zb_zdo.h"
+static void zr_send_data(zb_uint8_t param);
+static void zr_profile(zb_uint8_t param);
 
+zb_ieee_addr_t g_zr_addr = {0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb};
 
-/*! \addtogroup ZB_TESTS */
-/*! @{ */
+static volatile zb_uint8_t button_left;
+static volatile zb_uint8_t button_right;
+static zb_uint8_t read_pin, cycle;
 
-static void send_data(zb_buf_t *buf);
-#ifndef APS_RETRANSMIT_TEST
-void data_indication(zb_uint8_t param) ZB_CALLBACK;
-#endif
+void EXTI0_IRQHandler(void)
+{
+  EXTI_ClearITPendingBit(EXTI_Line0);
+  read_pin = GPIO_ReadInputDataBit(GPIOE, B_LEFT);
+  
+  while(read_pin == 1)
+    {
+      read_pin = GPIO_ReadInputDataBit(GPIOE, B_LEFT);
+      
+      if(cycle == 60)
+	{
+	  button_left = 1;
+	  break;
+	}
+      else
+	{
+	  button_left = 0;
+   	}
+      cycle++;
+    }
+  cycle = 0;
+}
 
-/*
-  ZR joins to ZC, then sends APS packet.
- */
-
+void EXTI1_IRQHandler(void)
+{
+  EXTI_ClearITPendingBit(EXTI_Line1);
+  read_pin = GPIO_ReadInputDataBit(GPIOE, B_RIGHT);
+  
+  while(read_pin == 1)
+    {
+      read_pin = GPIO_ReadInputDataBit(GPIOE, B_RIGHT);
+      
+      if(cycle == 60)
+	{
+	  button_right = 1;
+	  break;
+	}
+      else
+	{
+	  button_right = 0;
+	}
+      cycle++;
+    }
+  cycle = 0;
+}
 
 MAIN()
 {
+  
   ARGV_UNUSED;
 
 #if !(defined KEIL || defined SDCC|| defined ZB_IAR)
   if ( argc < 3 )
   {
-    printf("%s <read pipe path> <write pipe path>\n", argv[0]);
     return 0;
   }
 #endif
@@ -89,17 +124,13 @@ MAIN()
 #ifdef ZB_SECURITY
   ZG->nwk.nib.security_level = 0;
 #endif
-  /* FIXME: temporary, until neighbor table is not in nvram */
-  /* add extended address of potential parent to emulate that we've already
-   * been connected to it */
+
   {
-    zb_ieee_addr_t ieee_address;
     zb_address_ieee_ref_t ref;
-
-    ZB_64BIT_ADDR_ZERO(ieee_address);
-    ieee_address[7] = 8;
-
-    zb_address_update(ieee_address, 0, ZB_FALSE, &ref);
+    zb_address_update(g_zr_addr, 0, ZB_FALSE, &ref); // legacy
+    ZB_IEEE_ADDR_COPY(ZB_PIB_EXTENDED_ADDRESS(), &g_zr_addr);
+    ZB_AIB().aps_channel_mask = (1l << 22);
+    init_button();
   }
 
   if (zdo_dev_start() != RET_OK)
@@ -110,85 +141,91 @@ MAIN()
   {
     zdo_main_loop();
   }
-
+  
   TRACE_DEINIT();
 
   MAIN_RETURN(0);
 }
 
-
-void zb_zdo_startup_complete(zb_uint8_t param) ZB_CALLBACK
+void zb_zdo_startup_complete(zb_uint8_t param)
 {
   zb_buf_t *buf = ZB_BUF_FROM_REF(param);
+
   if (buf->u.hdr.status == 0)
-  {
-    TRACE_MSG(TRACE_APS1, "Device STARTED OK", (FMT__0));
-#ifndef APS_RETRANSMIT_TEST
-    zb_af_set_data_indication(data_indication);
-#endif
-    send_data((zb_buf_t *)ZB_BUF_FROM_REF(param));
-  }
+    {
+      ZB_SCHEDULE_CALLBACK(zr_profile, param);
+    }
   else
-  {
-    TRACE_MSG(TRACE_ERROR, "Device started FAILED status %d", (FMT__D, (int)buf->u.hdr.status));
-    zb_free_buf(buf);
-  }
+    {
+      zb_free_buf(buf);
+    }
 }
 
-
-static void send_data(zb_buf_t *buf)
+static void zr_send_data(zb_uint8_t param)
 {
+  zb_buf_t *buf = (zb_buf_t*)ZB_BUF_FROM_REF(param);
   zb_apsde_data_req_t *req;
-  zb_uint8_t *ptr = NULL;
-  zb_short_t i;
-
-  ZB_BUF_INITIAL_ALLOC(buf, ZB_TEST_DATA_SIZE, ptr);
+    
   req = ZB_GET_BUF_TAIL(buf, sizeof(zb_apsde_data_req_t));
-  req->dst_addr.addr_short = 0; /* send to ZC */
+  req->dst_addr.addr_short = 0;
   req->addr_mode = ZB_APS_ADDR_MODE_16_ENDP_PRESENT;
   req->tx_options = ZB_APSDE_TX_OPT_ACK_TX;
   req->radius = 1;
   req->profileid = 2;
   req->src_endpoint = 10;
   req->dst_endpoint = 10;
-
   buf->u.hdr.handle = 0x11;
-
-  for (i = 0 ; i < ZB_TEST_DATA_SIZE ; ++i)
-  {
-    ptr[i] = i % 32 + '0';
-  }
-  TRACE_MSG(TRACE_APS3, "Sending apsde_data.request", (FMT__0));
-
-  ZB_SCHEDULE_CALLBACK(zb_apsde_data_request, ZB_REF_FROM_BUF(buf));
-}
-
-#ifndef APS_RETRANSMIT_TEST
-void data_indication(zb_uint8_t param)
-{
-  zb_ushort_t i;
-  zb_uint8_t *ptr;
-  zb_buf_t *asdu = (zb_buf_t *)ZB_BUF_FROM_REF(param);
-
-  /* Remove APS header from the packet */
-  ZB_APS_HDR_CUT_P(asdu, ptr);
-
-  TRACE_MSG(TRACE_APS3, "data_indication: packet %p len %d handle 0x%x", (FMT__P_D_D,
-                         asdu, (int)ZB_BUF_LEN(asdu), asdu->u.hdr.status));
-
-  for (i = 0 ; i < ZB_BUF_LEN(asdu) ; ++i)
-  {
-    TRACE_MSG(TRACE_APS3, "%x %c", (FMT__D_C, (int)ptr[i], ptr[i]));
-    if (ptr[i] != i % 32 + '0')
-    {
-      TRACE_MSG(TRACE_ERROR, "Bad data %hx %c wants %x %c", (FMT__H_C_D_C, ptr[i], ptr[i],
-                              (int)(i % 32 + '0'), (char)i % 32 + '0'));
-    }
-  }
+  button_left = 0;
+  button_right = 0;
   
-  send_data(asdu);
+  ZB_SCHEDULE_CALLBACK(zb_apsde_data_request, ZB_REF_FROM_BUF(buf));  
 }
-#endif
 
+void zr_toggle(zb_uint8_t param)
+{
+  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
+  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
+  ZB_BUF_INITIAL_ALLOC(buf, 1, ptr);
+  ptr[0] = (zb_uint8_t)LED_COMMAND_TOGGLE;
+  zr_send_data(param);
+}
 
-/*! @} */
+void zr_step_up(zb_uint8_t param)
+{
+  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
+  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
+  ZB_BUF_INITIAL_ALLOC(buf, 1, ptr);
+  ptr[0] = (zb_uint8_t)LED_COMMAND_STEP_UP;
+  zr_send_data(param);
+}
+
+void zr_change_color(zb_uint8_t param)
+{
+  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
+  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
+  ZB_BUF_INITIAL_ALLOC(buf, 1, ptr);
+  ptr[0] = (zb_uint8_t)LED_COMMAND_CHANGE_COLOR;
+  zr_send_data(param);
+}
+
+static void zr_profile(zb_uint8_t param)
+{
+  
+  if (button_left == 1 && button_right == 1)
+    { 
+      ZB_SCHEDULE_CALLBACK(zr_change_color, param);
+    }
+      
+  if (button_left == 0 && button_right == 1)
+    {
+      ZB_SCHEDULE_CALLBACK(zr_toggle, param);
+    }
+      
+  if (button_left == 1 && button_right == 0)
+    {
+      ZB_SCHEDULE_CALLBACK(zr_step_up, param);
+    }
+  
+  zb_uint8_t some_param = ZB_REF_FROM_BUF(zb_get_out_buf());
+  ZB_SCHEDULE_ALARM(zr_profile, some_param, 5);
+}

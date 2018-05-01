@@ -1,4 +1,3 @@
-#!/bin/sh
 #/***************************************************************************
 #*                      ZBOSS ZigBee Pro 2007 stack                         *
 #*                                                                          *
@@ -44,82 +43,55 @@
 #* ClarIDy/UBEC/DSR.                                                        *
 #*                                                                          *
 #****************************************************************************
-#PURPOSE:
+# PURPOSE: Formation and discovery tests.
 #*/
 
-wait_for_start() {
-    nm=$1
-    s=''
-    while [ A"$s" = A ]
-    do
-        sleep 1
-        if [ -f core ]
-        then
-            echo 'Somebody has crashed (ns?)'
-            killch
-            exit 1
-        fi
-        s=`grep Device zdo_${nm}*.log`
-    done
-    if echo $s | grep OK
-    then
-        return
-    else
-        echo $s
-        killch
-        exit 1
-    fi
-}
+BUILD_HOME=../..
+include $(BUILD_HOME)/Options
 
-killch() {
-    kill $endPID $coordPID $PipePID
-}
+FNAME1 = zdo_start_zc
+FNAME2 = zdo_start_zr
 
-killch_ex() {
-    killch
-    echo Interrupted by user!
-    exit 1
-}
+FNAME3 = leds_lib
+FNAME4 = button_lib
 
-trap killch_ex TERM INT
+SRCS1 = $(FNAME1).c
+OBJS1 = ${SRCS1:.c=.o}
+SRCS2 = $(FNAME2).c
+OBJS2 = ${SRCS2:.c=.o}
+
+SRCS3 = $(FNAME3).c
+OBJS3 = ${SRCS3:.c=.o}
+
+SRCS4 = $(FNAME4).c
+OBJS4 = ${SRCS4:.c=.o}
+
+#SRCS1 += $(STARTCODE)
 
 
-rm -f *.log *.pcap *.dump core
+$(BIN)zdo_start_zc$(EXE) : $(OBJS1) $(OBJS3) $(LIBS)
+	$(LINK_BINARY)
+	$(OBJCOPY) -O ihex $(FNAME1) $(FNAME1).hex
+	$(OBJCOPY) -I ihex -O binary $(FNAME1).hex $(FNAME1).bin
 
-echo "run ns"
+$(BIN)zdo_start_zr$(EXE) : $(OBJS2) $(OBJS4) $(LIBS)
+	$(LINK_BINARY)
+	$(OBJCOPY) -O ihex $(FNAME2) $(FNAME2).hex
+	$(OBJCOPY) -I ihex -O binary $(FNAME2).hex $(FNAME2).bin
 
-../../devtools/network_simulator/network_simulator --nNode=2 --pipeName=/tmp/zt >ns.txt 2>&1 &
-PipePID=$!
-sleep 1
-
-echo "run coordinator"
-./zdo_start_zc /tmp/zt0.write /tmp/zt0.read &
-coordPID=$!
-wait_for_start zc
-
-echo ZC STARTED OK
-
-echo "run zr"
-./zdo_start_zr /tmp/zt1.write /tmp/zt1.read &
-endPID=$!
-wait_for_start zr
-
-echo ZR STARTED OK
-
-sleep 50
-
-if [ -f core ]
-then
-    echo 'Somebody has crashed'
-fi
-
-echo 'shutdown...'
-killch
+#$(BIN)zdo_start_zc_apss$(EXE) : $(SRCS1)  $(LIBS)
+#	$(CC) $(CFLAGS) -DAPS_SECUR  $(DEFINES) $(INCPATH) -o $@ $< $(LIBS) $(LIBS)
 
 
-set - `ls *dump`
-../../devtools/dump_converter/dump_converter -ns $1 c.pcap
-../../devtools/dump_converter/dump_converter -ns $2 ze.pcap
+BINS =  $(BIN)zdo_start_zc$(EXE)
+BINS += $(BIN)zdo_start_zr$(EXE)
+all: $(BINS)
 
-echo 'Now verify traffic dump, please!'
+#BINS_TEST='run_test.sh'
+
+burn_$(FNAME1): $(FNAME1).bin
+	st-flash write $(FNAME1).bin 0x08000000
+
+burn_$(FNAME2): $(FNAME2).bin
+	st-flash write $(FNAME2).bin 0x08000000
 

@@ -49,29 +49,48 @@
 BUILD_HOME=../..
 include $(BUILD_HOME)/Options
 
-SRCS1 = zdo_start_zc.c
+FNAME1 = zdo_start_zc
+FNAME2 = zdo_start_zr
+
+FNAME3 = leds_lib
+FNAME4 = buttons_lib
+
+SRCS1 = $(FNAME1).c
 OBJS1 = ${SRCS1:.c=.o}
-SRCS2 = zdo_start_zr.c
+SRCS2 = $(FNAME2).c
 OBJS2 = ${SRCS2:.c=.o}
-SRCS3 = zdo_start_ze.c
-OBJS3 = ${SRCS3:.c=.ed.o}
+
+SRCS3 = $(FNAME3).c
+OBJS3 = ${SRCS3:.c=.o}
+SRCS4 = $(FNAME4).c
+OBJS4 = ${SRCS4:.c=.o}
+
+#SRCS1 += $(STARTCODE)
 
 
-$(BIN)zdo_start_zc$(EXE) : $(OBJS1)  $(LIBS)
+$(BIN)zdo_start_zc$(EXE) : $(OBJS1) $(OBJS3) $(LIBS)
 	$(LINK_BINARY)
+	$(OBJCOPY) -O ihex $(FNAME1) $(FNAME1).hex
+	$(OBJCOPY) -I ihex -O binary $(FNAME1).hex $(FNAME1).bin
 
-$(BIN)zdo_start_zr$(EXE) : $(OBJS2)  $(LIBS)
+$(BIN)zdo_start_zr$(EXE) : $(OBJS2) $(OBJS4) $(LIBS)
 	$(LINK_BINARY)
-
-$(BIN)zdo_start_ze$(EXE) : $(OBJS3)  $(LIBS_ED)
-	$(LINK_BINARY_ED)
-
+	$(OBJCOPY) -O ihex $(FNAME2) $(FNAME2).hex
+	$(OBJCOPY) -I ihex -O binary $(FNAME2).hex $(FNAME2).bin
 
 #$(BIN)zdo_start_zc_apss$(EXE) : $(SRCS1)  $(LIBS)
 #	$(CC) $(CFLAGS) -DAPS_SECUR  $(DEFINES) $(INCPATH) -o $@ $< $(LIBS) $(LIBS)
 
 
-BINS = $(BIN)zdo_start_zc$(EXE) $(BIN)zdo_start_ze$(EXE) $(BIN)zdo_start_zr$(EXE)
+BINS =  $(BIN)zdo_start_zc$(EXE)
+BINS += $(BIN)zdo_start_zr$(EXE)
 all: $(BINS)
 
 #BINS_TEST='run_test.sh'
+
+burn_$(FNAME1): $(FNAME1).bin
+	st-flash write $(FNAME1).bin 0x08000000
+
+burn_$(FNAME2): $(FNAME2).bin
+	st-flash write $(FNAME2).bin 0x08000000
+

@@ -62,6 +62,8 @@ PURPOSE: Test for ZC application written using ZDO.
 
 #define ZB_TEST_DUMMY_DATA_SIZE 10
 
+zb_ieee_addr_t g_ze_addr = {0xed, 0xed, 0xed, 0xed, 0xed, 0xed, 0xed, 0xed};
+
 static void send_data(zb_uint8_t param) ZB_CALLBACK;
 void data_indication(zb_uint8_t param) ZB_CALLBACK;
 
@@ -79,7 +81,7 @@ MAIN()
 #if !(defined KEIL || defined SDCC || defined ZB_IAR )
   if ( argc < 3 )
   {
-    printf("%s <read pipe path> <write pipe path>\n", argv[0]);
+    //printf("%s <read pipe path> <write pipe path>\n", argv[0]);
     return 0;
   }
 #endif
@@ -93,9 +95,10 @@ MAIN()
 #ifdef ZB_SECURITY
   ZG->nwk.nib.security_level = 0;
 #endif
-  
-  ZB_PIB_RX_ON_WHEN_IDLE() = ZB_TRUE;
-
+  ZB_IEEE_ADDR_COPY(ZB_PIB_EXTENDED_ADDRESS(), &g_ze_addr);
+  ZB_PIB_RX_ON_WHEN_IDLE() = ZB_FALSE;
+  ZB_AIB().aps_channel_mask = (1l << 22);
+	
   if (zdo_dev_start() != RET_OK)
   {
     TRACE_MSG(TRACE_ERROR, "zdo_dev_start failed", (FMT__0));
