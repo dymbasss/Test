@@ -143,8 +143,6 @@ void zb_zdo_startup_complete(zb_uint8_t param)
   zb_free_buf(buf);
 }
 
-zb_schedule_callback
-
 static void data_indication(zb_uint8_t param)
 {
   zb_uint8_t *ptr;
