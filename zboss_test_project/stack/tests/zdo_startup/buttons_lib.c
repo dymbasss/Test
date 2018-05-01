@@ -1,5 +1,7 @@
 #include "zdo_header_for_led.h"
 
+void init_button(void);
+
 //-----------------------------------------------------------------------
 
 void init_button(void) // BUTTON L & R

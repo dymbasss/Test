@@ -49,16 +49,12 @@ PURPOSE: Test for ZC application written using ZDO.
 #include "zdo_header_for_led.h"
 #include "stm32f4xx_tim.h"
 
-#ifndef ZB_COORDINATOR_ROLE
-#error Coordinator role is not compiled!
-#endif
-
 zb_ieee_addr_t g_zc_addr = {0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa};
 
 static void zc_led_command(zb_uint8_t *ptr);
 static void data_indication(zb_uint8_t param);
 
-static zb_uint16_t RGB_1[] = {GPIO_Pin_14, GPIO_Pin_12, GPIO_Pin_15};
+static zb_uint16_t RGB[] = {GPIO_Pin_14, GPIO_Pin_12, GPIO_Pin_15};
 static volatile zb_uint8_t color;
 
 void change_color_RGB(void)
@@ -74,17 +70,17 @@ void change_color_RGB(void)
   
   if (color == COLOR_RED)                                
     {
-      GPIO_SetBits(GPIOD, RGB_1[color]);
+      GPIO_SetBits(GPIOD, RGB[color]);
     }
   
   else if (color == COLOR_GREEN)
     {
-      GPIO_SetBits(GPIOD, RGB_1[color]);
+      GPIO_SetBits(GPIOD, RGB[color]);
     }
 
   else if (color == COLOR_BLUE)
     {
-      GPIO_SetBits(GPIOD, RGB_1[color]);
+      GPIO_SetBits(GPIOD, RGB[color]);
     }
 }
 

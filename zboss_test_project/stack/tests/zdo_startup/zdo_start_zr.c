@@ -49,7 +49,7 @@ PURPOSE: Test for ZC application written using ZDO.
 #include "zdo_header_for_led.h"
 
 static void zr_send_data(zb_uint8_t param);
-static void zr_profile(zb_uint8_t param);
+static void zr_send_led_command(zb_uint8_t param);
 
 zb_ieee_addr_t g_zr_addr = {0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb};
 
@@ -153,7 +153,7 @@ void zb_zdo_startup_complete(zb_uint8_t param)
 
   if (buf->u.hdr.status == 0)
     {
-      ZB_SCHEDULE_CALLBACK(zr_profile, param);
+      ZB_SCHEDULE_CALLBACK(zr_send_led_command, param);
     }
   else
     {
@@ -208,7 +208,7 @@ void zr_change_color(zb_uint8_t param)
   zr_send_data(param);
 }
 
-static void zr_profile(zb_uint8_t param)
+static void zr_send_led_command(zb_uint8_t param)
 {
   
   if (button_left == 1 && button_right == 1)
@@ -227,5 +227,5 @@ static void zr_profile(zb_uint8_t param)
     }
   
   zb_uint8_t some_param = ZB_REF_FROM_BUF(zb_get_out_buf());
-  ZB_SCHEDULE_ALARM(zr_profile, some_param, 5);
+  ZB_SCHEDULE_ALARM(zr_send_led_command, some_param, 5);
 }

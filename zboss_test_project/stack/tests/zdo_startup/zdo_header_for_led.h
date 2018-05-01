@@ -12,14 +12,13 @@
 #define B_LEFT GPIO_Pin_0
 #define B_RIGHT GPIO_Pin_1
 
-// Pin_8 - Pin_9 - Pin_10
+// Pin_6 - Pin_7 - Pin_8
 #define L_PIN_RED GPIO_Pin_6
 #define L_PIN_GREEN GPIO_Pin_7
 #define L_PIN_BLUE GPIO_Pin_8
 
 #define PWM_FREQ 1000
 #define PERIOD (zb_uint16_t)(84000000 / PWM_FREQ - 1) // 1 kHz -> 8399 = (timer_clock / PWM_frequency) - 1
-
 
 #define FIRST_BYTE 0
 
@@ -37,5 +36,10 @@ typedef enum
     COLOR_BLUE
   } led_color;
 
-  
+void init_button(void);
+
+void init_led(void);
+
+void init_timer_pwm(void);
+
 #endif // !ZB_HEADERFOR_LED_H

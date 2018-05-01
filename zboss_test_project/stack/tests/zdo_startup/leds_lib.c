@@ -1,6 +1,13 @@
 #include "zdo_header_for_led.h"
 #include "stm32f4xx_tim.h"
 
+void init_led(void);
+void init_timer_pwm(void);
+void toggle_color(zb_uint8_t);
+void increase_brightness(zb_uint8_t);
+void led_state(zb_uint8_t);
+void delay_mc(zb_uint8_t);
+
 static volatile zb_bool_t led_state_red = ZB_FALSE;
 static volatile zb_bool_t led_state_green = ZB_FALSE;
 static volatile zb_bool_t led_state_blue = ZB_FALSE;
