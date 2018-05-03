@@ -1,6 +1,4 @@
-#include "zdo_header_for_led.h"
-
-void init_button(void);
+#include "zdo_header_for_button.h"
 
 //-----------------------------------------------------------------------
 
@@ -45,6 +43,39 @@ void init_button(void) // BUTTON L & R
 }
 
 //-----------------------------------------------------------------------
+
+void left_button_hendler(zb_uint8_t param)
+{
+  ZB_SCHEDULE_CALLBACK(zr_send_led_command, param);
+}
+
+void right_button_hendler(zb_uint8_t param)
+{
+  ZB_SCHEDULE_CALLBACK(zr_send_led_command, param);
+}
+
+void double_click_hendler(zb_uint8_t param)
+{
+  ZB_SCHEDULE_ALARM_CANCEL(left_button_hendler, param);
+  ZB_SCHEDULE_ALARM_CANCEL(right_button_hendler, param);
+  ZB_SCHEDULE_CALLBACK(zr_send_led_command, param);
+}
+
+void set_double_click_hendler(zb_callback_t func)
+{
+  ZB_SCHEDULE_CALLBACK(func, 0);
+}
+
+void set_left_button_hendler(zb_callback_t func)
+{
+  ZB_SCHEDULE_ALARM(func, 0, 2);
+}
+
+void set_right_button_hendler(zb_callback_t func)
+{
+  ZB_SCHEDULE_ALARM(func, 0, 2);
+}
+
 
 
 

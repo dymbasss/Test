@@ -1,12 +1,10 @@
 #include "zdo_header_for_led.h"
 #include "stm32f4xx_tim.h"
 
-void init_led(void);
-void init_timer_pwm(void);
-void toggle_color(zb_uint8_t);
-void increase_brightness(zb_uint8_t);
-void led_state(zb_uint8_t);
-void delay_mc(zb_uint8_t);
+void toggle_color(zb_uint8_t color);
+void increase_brightness(zb_uint8_t color);
+void led_state();
+void delay_mc(zb_uint8_t mc);
 
 static volatile zb_bool_t led_state_red = ZB_FALSE;
 static volatile zb_bool_t led_state_green = ZB_FALSE;
@@ -98,9 +96,9 @@ void delay_ms(uint8_t ms)
     }
 }
 
-void led_state(zb_uint8_t color)
+void led_state()
 {
-  if (color == COLOR_RED && led_state_red == ZB_TRUE)
+  if (led_state_red == ZB_TRUE)
     {
       TIM4->CCR1 = red_pwm_value;
       delay_ms(1);
@@ -110,7 +108,7 @@ void led_state(zb_uint8_t color)
       TIM4->CCR1 = 0;
     }
 
-  if (color == COLOR_GREEN && led_state_green == ZB_TRUE)
+  if (led_state_green == ZB_TRUE)
     {
       TIM4->CCR2 = green_pwm_value;
       delay_ms(1);
@@ -120,7 +118,7 @@ void led_state(zb_uint8_t color)
       TIM4->CCR2 = 0;
     }
   
-  if (color == COLOR_BLUE && led_state_blue == ZB_TRUE)
+  if (led_state_blue == ZB_TRUE)
     {
       TIM4->CCR3 = blue_pwm_value;
       delay_ms(1);
@@ -145,13 +143,12 @@ void toggle_color(zb_uint8_t color)
       led_state_blue = !led_state_blue;
       break;
     }
-  
-  led_state(color);
+  led_state();
 }
 
 void increase_brightness(zb_uint8_t color)
 {
-  if (color == COLOR_RED  && led_state_red == ZB_TRUE)
+  if (color == COLOR_RED && led_state_red == ZB_TRUE)
     {
       red_pwm_value += PERIOD * 10 /100;
       if (red_pwm_value >= PERIOD)
@@ -178,7 +175,7 @@ void increase_brightness(zb_uint8_t color)
 	}
     }
   
-  led_state(color);
+  led_state();
 }
 
 

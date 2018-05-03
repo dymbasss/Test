@@ -46,16 +46,14 @@
 PURPOSE: Test for ZC application written using ZDO.
 */
 
-#include "zdo_header_for_led.h"
+#include "zdo_header_for_button.h"
 
 static void zr_send_data(zb_uint8_t param);
-static void zr_send_led_command(zb_uint8_t param);
 
 zb_ieee_addr_t g_zr_addr = {0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb};
-
-static volatile zb_uint8_t button_left;
-static volatile zb_uint8_t button_right;
 static zb_uint8_t read_pin, cycle;
+static volatile zb_bool_t button_state_left = ZB_FALSE;
+static volatile zb_bool_t button_state_right = ZB_FALSE;
 
 void EXTI0_IRQHandler(void)
 {
@@ -66,15 +64,20 @@ void EXTI0_IRQHandler(void)
     {
       read_pin = GPIO_ReadInputDataBit(GPIOE, B_LEFT);
       
-      if(cycle == 60)
+      if(cycle == 50)
 	{
-	  button_left = 1;
+	  button_state_left = ZB_TRUE;
+	  
+	  if (button_state_right == ZB_TRUE)
+	    {
+	      set_double_click_hendler(double_click_hendler);
+	    }
+	  else
+	    {
+	      set_left_button_hendler(left_button_hendler);
+	    }
 	  break;
 	}
-      else
-	{
-	  button_left = 0;
-   	}
       cycle++;
     }
   cycle = 0;
@@ -89,14 +92,19 @@ void EXTI1_IRQHandler(void)
     {
       read_pin = GPIO_ReadInputDataBit(GPIOE, B_RIGHT);
       
-      if(cycle == 60)
+      if(cycle == 50)
 	{
-	  button_right = 1;
+	  button_state_right = ZB_TRUE;
+
+	  if (button_state_left == ZB_TRUE)
+	    {
+	      set_double_click_hendler(double_click_hendler);
+	    }
+	  else
+	    {
+	      set_right_button_hendler(right_button_hendler);
+	    }
 	  break;
-	}
-      else
-	{
-	  button_right = 0;
 	}
       cycle++;
     }
@@ -153,12 +161,9 @@ void zb_zdo_startup_complete(zb_uint8_t param)
 
   if (buf->u.hdr.status == 0)
     {
-      ZB_SCHEDULE_CALLBACK(zr_send_led_command, param);
+     TRACE_MSG(TRACE_APS1, "Device STARTED OK", (FMT__0));
     }
-  else
-    {
-      zb_free_buf(buf);
-    }
+    zb_free_buf(buf);
 }
 
 static void zr_send_data(zb_uint8_t param)
@@ -175,8 +180,8 @@ static void zr_send_data(zb_uint8_t param)
   req->src_endpoint = 10;
   req->dst_endpoint = 10;
   buf->u.hdr.handle = 0x11;
-  button_left = 0;
-  button_right = 0;
+  button_state_left = ZB_FALSE;
+  button_state_right = ZB_FALSE;
   
   ZB_SCHEDULE_CALLBACK(zb_apsde_data_request, ZB_REF_FROM_BUF(buf));  
 }
@@ -208,24 +213,23 @@ void zr_change_color(zb_uint8_t param)
   zr_send_data(param);
 }
 
-static void zr_send_led_command(zb_uint8_t param)
+void zr_send_led_command(zb_uint8_t param)
 {
-  
-  if (button_left == 1 && button_right == 1)
-    { 
-      ZB_SCHEDULE_CALLBACK(zr_change_color, param);
-    }
-      
-  if (button_left == 0 && button_right == 1)
-    {
-      ZB_SCHEDULE_CALLBACK(zr_toggle, param);
-    }
-      
-  if (button_left == 1 && button_right == 0)
-    {
-      ZB_SCHEDULE_CALLBACK(zr_step_up, param);
-    }
-  
   zb_uint8_t some_param = ZB_REF_FROM_BUF(zb_get_out_buf());
-  ZB_SCHEDULE_ALARM(zr_send_led_command, some_param, 5);
+  
+  if (button_state_left == ZB_TRUE && button_state_right == ZB_TRUE)
+    { 
+      ZB_SCHEDULE_CALLBACK(zr_change_color, some_param);
+    }
+      
+  if (button_state_left == ZB_FALSE && button_state_right == ZB_TRUE)
+    {
+      ZB_SCHEDULE_CALLBACK(zr_toggle, some_param);
+    }
+      
+  if (button_state_left == ZB_TRUE && button_state_right == ZB_FALSE)
+    {
+      ZB_SCHEDULE_CALLBACK(zr_step_up, some_param);
+    }
 }
+

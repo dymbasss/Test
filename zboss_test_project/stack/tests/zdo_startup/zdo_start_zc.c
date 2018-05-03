@@ -47,7 +47,6 @@ PURPOSE: Test for ZC application written using ZDO.
 */
 
 #include "zdo_header_for_led.h"
-#include "stm32f4xx_tim.h"
 
 zb_ieee_addr_t g_zc_addr = {0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa};
 
@@ -150,7 +149,6 @@ static void data_indication(zb_uint8_t param)
   zc_led_command(ptr);
   zb_free_buf(asdu);   
 }
-
 static void zc_led_command(zb_uint8_t *ptr)
 {
   switch(ptr[FIRST_BYTE])
