@@ -12,13 +12,11 @@
 #define B_LEFT GPIO_Pin_0
 #define B_RIGHT GPIO_Pin_1
 
-void left_button_hendler(zb_uint8_t param);
-void right_button_hendler(zb_uint8_t param);
-void double_click_hendler(zb_uint8_t param);
-void set_double_click_hendler(zb_callback_t func);
-void set_left_button_hendler(zb_callback_t func);
-void set_right_button_hendler(zb_callback_t func);
-void zr_send_led_command(zb_uint8_t param);
+void set_double_click_handler(zb_callback_t func);
+void set_left_button_handler(zb_callback_t func);
+void set_right_button_handler(zb_callback_t func);
+
+void init_timer(void);
 void init_button(void);
 
 typedef enum

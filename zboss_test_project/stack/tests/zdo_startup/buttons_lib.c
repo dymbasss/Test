@@ -1,4 +1,42 @@
 #include "zdo_header_for_button.h"
+#include "stm32f4xx_tim.h"
+
+void send_led_command(zb_uint8_t param);
+
+zb_callback_t right_button_callback;
+zb_callback_t left_button_callback;
+zb_callback_t double_click_callback;
+
+volatile zb_bool_t button_state_left = ZB_FALSE;
+volatile zb_bool_t button_state_right = ZB_FALSE;
+
+//-----------------------------------------------------------------------
+
+void init_timer(void)
+{
+  TIM_TimeBaseInitTypeDef  t_init_struct;
+  NVIC_InitTypeDef t_nvic_init_struct;
+  
+  /* Enable peripheral clock for timer */
+  RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
+  /* Init timer */
+  t_init_struct.TIM_Period = 100000 - 1;
+  t_init_struct.TIM_Prescaler = 84 - 1;
+  t_init_struct.TIM_ClockDivision = 0;
+  t_init_struct.TIM_CounterMode = TIM_CounterMode_Up;
+  TIM_TimeBaseInit(TIM2, &t_init_struct);
+  /*Interruption on up-dating*/
+  TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
+  /* On */ 
+  TIM_Cmd(TIM2, ENABLE);
+
+  t_nvic_init_struct.NVIC_IRQChannel = TIM2_IRQn;
+  t_nvic_init_struct.NVIC_IRQChannelPreemptionPriority = 0;
+  t_nvic_init_struct.NVIC_IRQChannelSubPriority = 1;
+  t_nvic_init_struct.NVIC_IRQChannelCmd = ENABLE;
+  NVIC_Init(&t_nvic_init_struct);
+
+}
 
 //-----------------------------------------------------------------------
 
@@ -8,7 +46,7 @@ void init_button(void) // BUTTON L & R
   NVIC_InitTypeDef b_nvic_init_struct;
   EXTI_InitTypeDef b_exti_init_struct;
   
-   /* Enable peripheral clock for buttons port */
+  /* Enable peripheral clock for buttons port */
   RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
   /* Init button */
   b_init_struct.GPIO_Pin = B_LEFT | B_RIGHT;
@@ -44,38 +82,90 @@ void init_button(void) // BUTTON L & R
 
 //-----------------------------------------------------------------------
 
-void left_button_hendler(zb_uint8_t param)
+void set_double_click_handler(zb_callback_t func)
 {
-  ZB_SCHEDULE_CALLBACK(zr_send_led_command, param);
+  double_click_callback = func;
 }
 
-void right_button_hendler(zb_uint8_t param)
+void set_left_button_handler(zb_callback_t func)
 {
-  ZB_SCHEDULE_CALLBACK(zr_send_led_command, param);
+  left_button_callback = func;
 }
 
-void double_click_hendler(zb_uint8_t param)
+void set_right_button_handler(zb_callback_t func)
 {
-  ZB_SCHEDULE_ALARM_CANCEL(left_button_hendler, param);
-  ZB_SCHEDULE_ALARM_CANCEL(right_button_hendler, param);
-  ZB_SCHEDULE_CALLBACK(zr_send_led_command, param);
+  right_button_callback = func;
 }
 
-void set_double_click_hendler(zb_callback_t func)
+void EXTI0_IRQHandler(void)
 {
-  ZB_SCHEDULE_CALLBACK(func, 0);
+  zb_uint8_t read_pin_0, cycle;
+  EXTI_ClearITPendingBit(EXTI_Line0);
+  read_pin_0 = GPIO_ReadInputDataBit(GPIOE, B_LEFT);
+
+  while(read_pin_0 == 1)
+    {
+      read_pin_0 = GPIO_ReadInputDataBit(GPIOE, B_LEFT);
+      
+      if(cycle == 50)
+	{
+	  button_state_left = ZB_TRUE;
+	  break;
+	}
+      cycle++;
+    }
+  cycle = 0;
 }
 
-void set_left_button_hendler(zb_callback_t func)
-{
-  ZB_SCHEDULE_ALARM(func, 0, 2);
+void EXTI1_IRQHandler(void)
+{  
+  zb_uint8_t read_pin_1, cycle;
+  EXTI_ClearITPendingBit(EXTI_Line1);
+  read_pin_1 = GPIO_ReadInputDataBit(GPIOE, B_RIGHT);
+  
+  while(read_pin_1 == 1)
+    {
+      read_pin_1 = GPIO_ReadInputDataBit(GPIOE, B_RIGHT);
+      
+      if(cycle == 50)
+	{
+	  button_state_right = ZB_TRUE;
+   	  break;
+	}
+      cycle++;
+    }
+  cycle = 0;
 }
 
-void set_right_button_hendler(zb_callback_t func)
+void TIM2_IRQHandler(void)
 {
-  ZB_SCHEDULE_ALARM(func, 0, 2);
+  if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
+    {
+      TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+      
+      send_led_command(0);
+    }
 }
 
-
-
+void send_led_command(zb_uint8_t param)
+{
+  if (button_state_left == ZB_TRUE && button_state_right == ZB_TRUE)
+    { 
+      button_state_left = ZB_FALSE;
+      button_state_right = ZB_FALSE;
+      ZB_SCHEDULE_ALARM(double_click_callback, param, ZB_MILLISECONDS_TO_BEACON_INTERVAL(100));
+    }
+      
+  if (button_state_left == ZB_FALSE && button_state_right == ZB_TRUE)
+    {
+      button_state_right = ZB_FALSE;
+      ZB_SCHEDULE_ALARM(right_button_callback, param, ZB_MILLISECONDS_TO_BEACON_INTERVAL(100));
+    }
+      
+  if (button_state_left == ZB_TRUE && button_state_right == ZB_FALSE)
+    {
+      button_state_left = ZB_FALSE;
+      ZB_SCHEDULE_ALARM(left_button_callback, param, ZB_MILLISECONDS_TO_BEACON_INTERVAL(100));
+    }
+}
 

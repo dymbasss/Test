@@ -3,7 +3,7 @@
 
 void toggle_color(zb_uint8_t color);
 void increase_brightness(zb_uint8_t color);
-void led_state();
+void udpate_led_state();
 void delay_mc(zb_uint8_t mc);
 
 static volatile zb_bool_t led_state_red = ZB_FALSE;
@@ -96,14 +96,14 @@ void delay_ms(uint8_t ms)
     }
 }
 
-void led_state()
+void update_led_state()
 {
   if (led_state_red == ZB_TRUE)
     {
       TIM4->CCR1 = red_pwm_value;
       delay_ms(1);
     }
-  else if (led_state_red == ZB_FALSE)
+  else
     {
       TIM4->CCR1 = 0;
     }
@@ -113,7 +113,7 @@ void led_state()
       TIM4->CCR2 = green_pwm_value;
       delay_ms(1);
     }
-  else if (led_state_green == ZB_FALSE)
+  else
     {
       TIM4->CCR2 = 0;
     }
@@ -123,7 +123,7 @@ void led_state()
       TIM4->CCR3 = blue_pwm_value;
       delay_ms(1);
     }
-  else if (led_state_blue == ZB_FALSE)
+  else 
     {
       TIM4->CCR3 = 0;
     }
@@ -143,7 +143,8 @@ void toggle_color(zb_uint8_t color)
       led_state_blue = !led_state_blue;
       break;
     }
-  led_state();
+  
+  update_led_state();
 }
 
 void increase_brightness(zb_uint8_t color)
@@ -175,7 +176,7 @@ void increase_brightness(zb_uint8_t color)
 	}
     }
   
-  led_state();
+  update_led_state();
 }
 
 

@@ -48,68 +48,12 @@ PURPOSE: Test for ZC application written using ZDO.
 
 #include "zdo_header_for_button.h"
 
-static void zr_send_data(zb_uint8_t param);
+void zr_send_data(zb_uint8_t param);
+void zr_toggle(zb_uint8_t param);
+void zr_change_color(zb_uint8_t param);
+void zr_step_up(zb_uint8_t param);
 
 zb_ieee_addr_t g_zr_addr = {0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb, 0xbb};
-static zb_uint8_t read_pin, cycle;
-static volatile zb_bool_t button_state_left = ZB_FALSE;
-static volatile zb_bool_t button_state_right = ZB_FALSE;
-
-void EXTI0_IRQHandler(void)
-{
-  EXTI_ClearITPendingBit(EXTI_Line0);
-  read_pin = GPIO_ReadInputDataBit(GPIOE, B_LEFT);
-  
-  while(read_pin == 1)
-    {
-      read_pin = GPIO_ReadInputDataBit(GPIOE, B_LEFT);
-      
-      if(cycle == 50)
-	{
-	  button_state_left = ZB_TRUE;
-	  
-	  if (button_state_right == ZB_TRUE)
-	    {
-	      set_double_click_hendler(double_click_hendler);
-	    }
-	  else
-	    {
-	      set_left_button_hendler(left_button_hendler);
-	    }
-	  break;
-	}
-      cycle++;
-    }
-  cycle = 0;
-}
-
-void EXTI1_IRQHandler(void)
-{
-  EXTI_ClearITPendingBit(EXTI_Line1);
-  read_pin = GPIO_ReadInputDataBit(GPIOE, B_RIGHT);
-  
-  while(read_pin == 1)
-    {
-      read_pin = GPIO_ReadInputDataBit(GPIOE, B_RIGHT);
-      
-      if(cycle == 50)
-	{
-	  button_state_right = ZB_TRUE;
-
-	  if (button_state_left == ZB_TRUE)
-	    {
-	      set_double_click_hendler(double_click_hendler);
-	    }
-	  else
-	    {
-	      set_right_button_hendler(right_button_hendler);
-	    }
-	  break;
-	}
-      cycle++;
-    }
-  cycle = 0;
-}
 
 MAIN()
 {
@@ -138,8 +82,13 @@ MAIN()
     zb_address_update(g_zr_addr, 0, ZB_FALSE, &ref); // legacy
     ZB_IEEE_ADDR_COPY(ZB_PIB_EXTENDED_ADDRESS(), &g_zr_addr);
     ZB_AIB().aps_channel_mask = (1l << 22);
+    init_timer();
     init_button();
   }
+
+  set_double_click_handler(zr_change_color);
+  set_left_button_handler(zr_step_up);
+  set_right_button_handler(zr_toggle);
 
   if (zdo_dev_start() != RET_OK)
   {
@@ -166,7 +115,7 @@ void zb_zdo_startup_complete(zb_uint8_t param)
     zb_free_buf(buf);
 }
 
-static void zr_send_data(zb_uint8_t param)
+void zr_send_data(zb_uint8_t param)
 {
   zb_buf_t *buf = (zb_buf_t*)ZB_BUF_FROM_REF(param);
   zb_apsde_data_req_t *req;
@@ -180,56 +129,54 @@ static void zr_send_data(zb_uint8_t param)
   req->src_endpoint = 10;
   req->dst_endpoint = 10;
   buf->u.hdr.handle = 0x11;
-  button_state_left = ZB_FALSE;
-  button_state_right = ZB_FALSE;
   
   ZB_SCHEDULE_CALLBACK(zb_apsde_data_request, ZB_REF_FROM_BUF(buf));  
 }
 
 void zr_toggle(zb_uint8_t param)
 {
-  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
-  ZB_BUF_INITIAL_ALLOC(buf, 1, ptr);
-  ptr[0] = (zb_uint8_t)LED_COMMAND_TOGGLE;
-  zr_send_data(param);
+  if (param == 0)
+    {
+      ZB_GET_OUT_BUF_DELAYED(zr_toggle);
+    }
+  else
+    {
+      zb_buf_t *buf = ZB_BUF_FROM_REF(param);
+      zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
+      ZB_BUF_INITIAL_ALLOC(buf, 1, ptr);
+      ptr[0] = (zb_uint8_t)LED_COMMAND_TOGGLE;
+      zr_send_data(param);
+    }
 }
 
 void zr_step_up(zb_uint8_t param)
 {
-  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
-  ZB_BUF_INITIAL_ALLOC(buf, 1, ptr);
-  ptr[0] = (zb_uint8_t)LED_COMMAND_STEP_UP;
-  zr_send_data(param);
+  if (param == 0)
+    {
+      ZB_GET_OUT_BUF_DELAYED(zr_step_up);
+    }
+  else
+    {
+      zb_buf_t *buf = ZB_BUF_FROM_REF(param);
+      zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
+      ZB_BUF_INITIAL_ALLOC(buf, 1, ptr);
+      ptr[0] = (zb_uint8_t)LED_COMMAND_STEP_UP;
+      zr_send_data(param);
+    }
 }
 
 void zr_change_color(zb_uint8_t param)
 {
-  zb_buf_t *buf = ZB_BUF_FROM_REF(param);
-  zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
-  ZB_BUF_INITIAL_ALLOC(buf, 1, ptr);
-  ptr[0] = (zb_uint8_t)LED_COMMAND_CHANGE_COLOR;
-  zr_send_data(param);
-}
-
-void zr_send_led_command(zb_uint8_t param)
-{
-  zb_uint8_t some_param = ZB_REF_FROM_BUF(zb_get_out_buf());
-  
-  if (button_state_left == ZB_TRUE && button_state_right == ZB_TRUE)
-    { 
-      ZB_SCHEDULE_CALLBACK(zr_change_color, some_param);
-    }
-      
-  if (button_state_left == ZB_FALSE && button_state_right == ZB_TRUE)
+  if (param == 0)
     {
-      ZB_SCHEDULE_CALLBACK(zr_toggle, some_param);
+      ZB_GET_OUT_BUF_DELAYED(zr_change_color);
     }
-      
-  if (button_state_left == ZB_TRUE && button_state_right == ZB_FALSE)
+  else
     {
-      ZB_SCHEDULE_CALLBACK(zr_step_up, some_param);
+      zb_buf_t *buf = ZB_BUF_FROM_REF(param);
+      zb_uint8_t *ptr = ZB_BUF_BEGIN(buf);
+      ZB_BUF_INITIAL_ALLOC(buf, 1, ptr);
+      ptr[0] = (zb_uint8_t)LED_COMMAND_CHANGE_COLOR;
+      zr_send_data(param);
     }
 }
-
