@@ -28,14 +28,26 @@ void init_timer(void)
   /*Interruption on up-dating*/
   TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
   /* On */ 
-  TIM_Cmd(TIM2, ENABLE);
+  //TIM_Cmd(TIM2, ENABLE);
 
   t_nvic_init_struct.NVIC_IRQChannel = TIM2_IRQn;
   t_nvic_init_struct.NVIC_IRQChannelPreemptionPriority = 0;
   t_nvic_init_struct.NVIC_IRQChannelSubPriority = 1;
   t_nvic_init_struct.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init(&t_nvic_init_struct);
+}
 
+void state_tim_cmd(zb_uint8_t state)
+{
+  switch(state)
+    {
+    case TIM_CMD_DISABLE:
+      TIM_Cmd(TIM2, DISABLE);
+      break;
+    case TIM_CMD_ENABLE:
+      TIM_Cmd(TIM2, ENABLE);
+      break;
+    }
 }
 
 //-----------------------------------------------------------------------
@@ -110,6 +122,7 @@ void EXTI0_IRQHandler(void)
       if(cycle == 50)
 	{
 	  button_state_left = ZB_TRUE;
+	  state_tim_cmd(1);
 	  break;
 	}
       cycle++;
@@ -130,6 +143,7 @@ void EXTI1_IRQHandler(void)
       if(cycle == 50)
 	{
 	  button_state_right = ZB_TRUE;
+	  state_tim_cmd(1);
    	  break;
 	}
       cycle++;
@@ -150,12 +164,12 @@ void TIM2_IRQHandler(void)
 void send_led_command(zb_uint8_t param)
 {
   if (button_state_left == ZB_TRUE && button_state_right == ZB_TRUE)
-    { 
+    {
       button_state_left = ZB_FALSE;
       button_state_right = ZB_FALSE;
       ZB_SCHEDULE_ALARM(double_click_callback, param, ZB_MILLISECONDS_TO_BEACON_INTERVAL(100));
     }
-      
+  
   if (button_state_left == ZB_FALSE && button_state_right == ZB_TRUE)
     {
       button_state_right = ZB_FALSE;
@@ -167,5 +181,7 @@ void send_led_command(zb_uint8_t param)
       button_state_left = ZB_FALSE;
       ZB_SCHEDULE_ALARM(left_button_callback, param, ZB_MILLISECONDS_TO_BEACON_INTERVAL(100));
     }
+
+  state_tim_cmd(0);
 }
 
