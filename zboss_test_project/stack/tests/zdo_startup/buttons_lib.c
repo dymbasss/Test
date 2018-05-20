@@ -7,8 +7,8 @@ zb_callback_t right_button_callback;
 zb_callback_t left_button_callback;
 zb_callback_t double_click_callback;
 
-volatile zb_bool_t button_state_left = ZB_FALSE;
-volatile zb_bool_t button_state_right = ZB_FALSE;
+static volatile zb_bool_t button_state_left = ZB_FALSE;
+static volatile zb_bool_t button_state_right = ZB_FALSE;
 
 //-----------------------------------------------------------------------
 
